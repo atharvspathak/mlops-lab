@@ -12,6 +12,10 @@ jobs:
   # ── Job 1: Train + Register ─────────────────────────────
   train-and-register:
     runs-on: ubuntu-latest
+    env:
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+      MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+      MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
 
     outputs:
       artifact_name: ${{ steps.set_artifact.outputs.artifact_name }}

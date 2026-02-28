@@ -7,11 +7,20 @@ from sklearn.metrics import accuracy_score, f1_score
 import pandas as pd
 import numpy as np
 import os
-
+import mlflow
+import dagshub
 
 # ── MLflow Tracking ────────────────────────────────────────
 tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
-mlflow.set_tracking_uri(tracking_uri)
+
+if "dagshub" in tracking_uri:
+    dagshub.init(
+        repo_owner=os.getenv("MLFLOW_TRACKING_USERNAME"),
+        repo_name="mlflow-lab",
+        mlflow=True
+    )
+else:
+    mlflow.set_tracking_uri(tracking_uri)
 
 # ── 1. Load Data ───────────────────────────────────────────
 iris = load_iris()

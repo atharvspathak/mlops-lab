@@ -1,10 +1,20 @@
 import mlflow
 from mlflow.tracking import MlflowClient
 import os
+import mlflow
+import dagshub
 
 # ── MLflow Tracking ────────────────────────────────────────
 tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
-mlflow.set_tracking_uri(tracking_uri)
+
+if "dagshub" in tracking_uri:
+    dagshub.init(
+        repo_owner=os.getenv("MLFLOW_TRACKING_USERNAME"),
+        repo_name="mlflow-lab",
+        mlflow=True
+    )
+else:
+    mlflow.set_tracking_uri(tracking_uri)
 
 # ── 1. Connect to MLflow ───────────────────────────────────
 client = MlflowClient()
