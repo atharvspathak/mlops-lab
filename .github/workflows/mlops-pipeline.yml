@@ -7,16 +7,22 @@ on:
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving
-  IMAGE_TAG: ${{ github.run_number }}-${{ github.sha }}
 
 jobs:
   # ── Job 1: Train + Register ─────────────────────────────
   train-and-register:
     runs-on: ubuntu-latest
 
+    outputs:
+      artifact_name: ${{ steps.set_artifact.outputs.artifact_name }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set artifact name
+        id: set_artifact
+        run: echo "artifact_name=iris-model-${{ github.run_number }}" >> $GITHUB_OUTPUT
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,17 +38,15 @@ jobs:
             numpy==1.26.4
 
       - name: Train model
-        run: |
-          python scripts/train.py
+        run: python scripts/train.py
 
       - name: Register model
-        run: |
-          python scripts/register_model.py
+        run: python scripts/register_model.py
 
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iris-model-${{ github.run_number }}
+          name: ${{ steps.set_artifact.outputs.artifact_name }}
           path: models/
           retention-days: 7
 
@@ -52,17 +56,20 @@ jobs:
     needs: train-and-register
 
     outputs:
-      image_tag: ${{ env.IMAGE_TAG }}
-      image_name: ${{ env.IMAGE_NAME }}
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set image tag
+        id: set_tag
+        run: echo "image_tag=${{ github.run_number }}-${{ github.sha }}" >> $GITHUB_OUTPUT
+
       - name: Download model artifact
         uses: actions/download-artifact@v4
         with:
-          name: iris-model-${{ github.run_number }}
+          name: ${{ needs.train-and-register.outputs.artifact_name }}
           path: models/
 
       - name: Set up Docker Buildx
@@ -80,7 +87,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_NAME }}:${{ steps.set_tag.outputs.image_tag }}
             ${{ env.IMAGE_NAME }}:latest
           cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:latest
           cache-to: type=inline
@@ -88,7 +95,7 @@ jobs:
       - name: Print image info
         run: |
           echo "✅ Image pushed:"
-          echo "   ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          echo "   ${{ env.IMAGE_NAME }}:${{ steps.set_tag.outputs.image_tag }}"
           echo "   ${{ env.IMAGE_NAME }}:latest"
 
   # ── Job 3: Verify ───────────────────────────────────────
@@ -99,14 +106,14 @@ jobs:
     steps:
       - name: Pull image
         run: |
-          docker pull ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          docker pull ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Run container
         run: |
           docker run -d \
             --name test-api \
             -p 8000:8000 \
-            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}
 
       - name: Wait for startup
         run: sleep 15
@@ -140,5 +147,5 @@ jobs:
           echo "✅ Pipeline complete"
           echo "   Build : ${{ github.run_number }}"
           echo "   Commit: ${{ github.sha }}"
-          echo "   Image : ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          echo "   Image : ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
