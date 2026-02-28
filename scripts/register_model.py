@@ -1,5 +1,10 @@
 import mlflow
 from mlflow.tracking import MlflowClient
+import os
+
+# ── MLflow Tracking ────────────────────────────────────────
+tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+mlflow.set_tracking_uri(tracking_uri)
 
 # ── 1. Connect to MLflow ───────────────────────────────────
 client = MlflowClient()

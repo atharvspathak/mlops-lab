@@ -8,6 +8,11 @@ import pandas as pd
 import numpy as np
 import os
 
+
+# ── MLflow Tracking ────────────────────────────────────────
+tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
+mlflow.set_tracking_uri(tracking_uri)
+
 # ── 1. Load Data ───────────────────────────────────────────
 iris = load_iris()
 X = pd.DataFrame(iris.data, columns=iris.feature_names)
