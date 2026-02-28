@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: iris-serving-monitor
+  namespace: monitoring
+  labels:
+    release: prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - mlops
+  selector:
+    matchLabels:
+      app: iris-serving
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

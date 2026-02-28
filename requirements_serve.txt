@@ -1,0 +1,7 @@
+mlflow==2.11.1
+fastapi==0.110.0
+uvicorn==0.27.1
+scikit-learn==1.4.1.post1
+numpy==1.26.4
+pydantic==2.12.5
+prometheus-fastapi-instrumentator==6.1.0

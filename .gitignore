@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+mlruns/
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+models/iris-classifier/
+*.pkl
