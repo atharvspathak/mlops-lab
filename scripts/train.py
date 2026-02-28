@@ -51,3 +51,7 @@ with mlflow.start_run():
     print(f"Accuracy   : {accuracy:.4f}")
     print(f"F1 Score   : {f1:.4f}")
     print(f"Run ID     : {mlflow.active_run().info.run_id}")
+
+    os.makedirs("models/iris-classifier", exist_ok=True)
+    mlflow.sklearn.save_model(model, "models/iris-classifier")
+    print(f"Model saved to models/iris-classifier/")
