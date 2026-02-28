@@ -37,11 +37,9 @@ jobs:
             numpy==1.26.4
 
       - name: Train model
-        env:
         run: python scripts/train.py
 
       - name: Register model
-        env:
         run: python scripts/register_model.py
 
       - name: Upload model artifact
