@@ -36,10 +36,20 @@ jobs:
             pandas==2.2.1 \
             numpy==1.26.4
 
+      - name: Start MLflow server
+        run: |
+          mlflow server --host 0.0.0.0 --port 5000 &
+          sleep 5
+          curl http://localhost:5000/health
+
       - name: Train model
+        env:
+          MLFLOW_TRACKING_URI: http://localhost:5000
         run: python scripts/train.py
 
       - name: Register model
+        env:
+          MLFLOW_TRACKING_URI: http://localhost:5000
         run: python scripts/register_model.py
 
       - name: Upload model artifact
