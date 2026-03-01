@@ -5,112 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving
-
-jobs:
-  # ── Job 1: Train + Register ─────────────────────────────
-  train-and-register:
-    runs-on: ubuntu-latest
-    outputs:
-      artifact_name: ${{ steps.set_artifact.outputs.artifact_name }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set artifact name
-        id: set_artifact
-        run: echo "artifact_name=iris-model-${{ github.run_number }}" >> $GITHUB_OUTPUT
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          pip install \
-            mlflow==2.11.1 \
-            scikit-learn==1.4.1.post1 \
-            pandas==2.2.1 \
-            numpy==1.26.4
-
-      - name: Start MLflow server
-        run: |
-          mlflow server --host 0.0.0.0 --port 5000 &
-          sleep 5
-          curl http://localhost:5000/health
-
-      - name: Train model
-        env:
-          MLFLOW_TRACKING_URI: http://localhost:5000
-        run: python scripts/train.py
-
-      - name: Register model
-        env:
-          MLFLOW_TRACKING_URI: http://localhost:5000
-        run: python scripts/register_model.py
-
-      - name: Upload model artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: iris-model-${{ github.run_number }}
-          path: models/
-          retention-days: 7
-
-  # ── Job 2: Build + Push Docker Image ───────────────────
-  build-and-push:
-    runs-on: ubuntu-latest
-    needs: train-and-register
-
-    outputs:
-      image_tag: ${{ steps.set_tag.outputs.image_tag }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set image tag
-        id: set_tag
-        run: echo "image_tag=${{ github.run_number }}-${{ github.sha }}" >> $GITHUB_OUTPUT
-
-      - name: Download model artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: iris-model-${{ github.run_number }}
-          path: models/
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Login to ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Push to ECR
-        run: |
-          docker tag iris-serving:latest ${{ secrets.ECR_REPOSITORY_URL }}:${{ steps.set_tag.outputs.image_tag }}
-          docker tag iris-serving:latest ${{ secrets.ECR_REPOSITORY_URL }}:latest
-          docker push ${{ secrets.ECR_REPOSITORY_URL }}:${{ steps.set_tag.outputs.image_tag }} &
-          docker push ${{ secrets.ECR_REPOSITORY_URL }}:latest &
-          echo "⏳ Pushing to ECR..."
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v3name: MLOps Pipeline
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
 jobs:
   # ── Job 1: Train + Register ─────────────────────────────
   train-and-register:
@@ -205,30 +99,29 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Tag images
+        env:
+          IMAGE_TAG: ${{ steps.set_tag.outputs.image_tag }}
+          ECR_URL: ${{ secrets.ECR_REPOSITORY_URL }}
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          IMAGE_TAG=${{ steps.set_tag.outputs.image_tag }}
-
-          # ECR tags
-          docker tag iris-serving:latest ${{ secrets.ECR_REPOSITORY_URL }}:${IMAGE_TAG}
-          docker tag iris-serving:latest ${{ secrets.ECR_REPOSITORY_URL }}:latest
-
-          # DockerHub tags
-          docker tag iris-serving:latest ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:${IMAGE_TAG}
-          docker tag iris-serving:latest ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:latest
+          docker tag iris-serving:latest ${ECR_URL}:${IMAGE_TAG}
+          docker tag iris-serving:latest ${ECR_URL}:latest
+          docker tag iris-serving:latest ${DH_USER}/iris-serving:${IMAGE_TAG}
+          docker tag iris-serving:latest ${DH_USER}/iris-serving:latest
 
       - name: Push to ECR and DockerHub in parallel
+        env:
+          IMAGE_TAG: ${{ steps.set_tag.outputs.image_tag }}
+          ECR_URL: ${{ secrets.ECR_REPOSITORY_URL }}
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          IMAGE_TAG=${{ steps.set_tag.outputs.image_tag }}
-
-          docker push ${{ secrets.ECR_REPOSITORY_URL }}:${IMAGE_TAG} &
-          docker push ${{ secrets.ECR_REPOSITORY_URL }}:latest &
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:${IMAGE_TAG} &
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:latest &
-
+          docker push ${ECR_URL}:${IMAGE_TAG} &
+          docker push ${ECR_URL}:latest &
+          docker push ${DH_USER}/iris-serving:${IMAGE_TAG} &
+          docker push ${DH_USER}/iris-serving:latest &
           wait
-          echo "✅ Pushed to ECR: ${{ secrets.ECR_REPOSITORY_URL }}:${IMAGE_TAG}"
-          echo "✅ Pushed to DockerHub: ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:${IMAGE_TAG}"
-
+          echo "✅ Pushed to ECR: ${ECR_URL}:${IMAGE_TAG}"
+          echo "✅ Pushed to DockerHub: ${DH_USER}/iris-serving:${IMAGE_TAG}"
   # ── Job 3: Verify ───────────────────────────────────────
   verify:
     runs-on: ubuntu-latest
@@ -286,76 +179,4 @@ jobs:
           echo "   Commit : ${{ github.sha }}"
           echo "   ECR    : ${{ secrets.ECR_REPOSITORY_URL }}:${{ needs.build-and-push.outputs.image_tag }}"
           echo "   Docker : ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:${{ needs.build-and-push.outputs.image_tag }}"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ steps.set_tag.outputs.image_tag }}
-            ${{ env.IMAGE_NAME }}:latest
-          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:latest
-          cache-to: type=inline
-
-      - name: Print image info
-        run: |
-          echo "✅ Image pushed:"
-          echo "   ${{ env.IMAGE_NAME }}:${{ steps.set_tag.outputs.image_tag }}"
-          echo "   ${{ env.IMAGE_NAME }}:latest"
-
-  # ── Job 3: Verify ───────────────────────────────────────
-  verify:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-
-    steps:
-      - name: Pull image
-        run: |
-          docker pull ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: Run container
-        run: |
-          docker run -d \
-            --name test-api \
-            -p 8000:8000 \
-            ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: Wait for startup
-        run: sleep 15
-
-      - name: Health check
-        run: |
-          curl -f http://localhost:8000/health
-          echo "✅ Health check passed"
-
-      - name: Test prediction — setosa
-        run: |
-          RESPONSE=$(curl -sf -X POST http://localhost:8000/predict \
-            -H "Content-Type: application/json" \
-            -d '{"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2}')
-          echo "Response: $RESPONSE"
-          echo $RESPONSE | grep -q "setosa"
-          echo "✅ Setosa prediction passed"
-
-      - name: Test prediction — virginica
-        run: |
-          RESPONSE=$(curl -sf -X POST http://localhost:8000/predict \
-            -H "Content-Type: application/json" \
-            -d '{"sepal_length": 6.7, "sepal_width": 3.0, "petal_length": 5.2, "petal_width": 2.3}')
-          echo "Response: $RESPONSE"
-          echo $RESPONSE | grep -q "virginica"
-          echo "✅ Virginica prediction passed"
-
-      - name: Print final summary
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Pipeline complete"
-          echo "   Build : ${{ github.run_number }}"
-          echo "   Commit: ${{ github.sha }}"
-          echo "   Image : ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
