@@ -51,7 +51,9 @@ jobs:
           retention-days: 7
 
   # ── Job 2: Build + Push (DockerHub + ECR in parallel) ──
-  build-and-push:
+  
+  # ── Job 2a: Push to DockerHub ───────────────────────────
+  push-dockerhub:
     runs-on: ubuntu-latest
     needs: train-and-register
 
@@ -75,12 +77,47 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build image locally
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push to DockerHub
         uses: docker/build-push-action@v5
         with:
           context: .
-          load: true
-          tags: iris-serving:latest
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:${{ steps.set_tag.outputs.image_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:latest
+          cache-to: type=inline
+
+  # ── Job 2b: Push to ECR ─────────────────────────────────
+  push-ecr:
+    runs-on: ubuntu-latest
+    needs: train-and-register
+
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: set_tag
+        run: echo "image_tag=${{ github.run_number }}-${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Download model artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: iris-model-${{ github.run_number }}
+          path: models/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -92,36 +129,76 @@ jobs:
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
+      - name: Build and push to ECR
+        uses: docker/build-push-action@v5
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.ECR_REPOSITORY_URL }}:${{ steps.set_tag.outputs.image_tag }}
+            ${{ secrets.ECR_REPOSITORY_URL }}:latest
+          cache-from: type=registry,ref=${{ secrets.ECR_REPOSITORY_URL }}:latest
+          cache-to: type=inline
 
-      - name: Tag images
-        env:
-          IMAGE_TAG: ${{ steps.set_tag.outputs.image_tag }}
-          ECR_URL: ${{ secrets.ECR_REPOSITORY_URL }}
-          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-        run: |
-          docker tag iris-serving:latest ${ECR_URL}:${IMAGE_TAG}
-          docker tag iris-serving:latest ${ECR_URL}:latest
-          docker tag iris-serving:latest ${DH_USER}/iris-serving:${IMAGE_TAG}
-          docker tag iris-serving:latest ${DH_USER}/iris-serving:latest
+  # ── Job 3: Verify (waits for both) ──────────────────────
+  verify:
+    runs-on: ubuntu-latest
+    needs: [push-dockerhub, push-ecr]
 
-      - name: Push to ECR and DockerHub in parallel
-        env:
-          IMAGE_TAG: ${{ steps.set_tag.outputs.image_tag }}
-          ECR_URL: ${{ secrets.ECR_REPOSITORY_URL }}
-          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Run container from ECR
         run: |
-          docker push ${ECR_URL}:${IMAGE_TAG} &
-          docker push ${ECR_URL}:latest &
-          docker push ${DH_USER}/iris-serving:${IMAGE_TAG} &
-          docker push ${DH_USER}/iris-serving:latest &
-          wait
-          echo "✅ Pushed to ECR: ${ECR_URL}:${IMAGE_TAG}"
-          echo "✅ Pushed to DockerHub: ${DH_USER}/iris-serving:${IMAGE_TAG}"
+          docker run -d \
+            --name test-api \
+            -p 8000:8000 \
+            ${{ secrets.ECR_REPOSITORY_URL }}:${{ needs.push-ecr.outputs.image_tag }}
+
+      - name: Wait for startup
+        run: sleep 15
+
+      - name: Health check
+        run: |
+          curl -f http://localhost:8000/health
+          echo "✅ Health check passed"
+
+      - name: Test prediction — setosa
+        run: |
+          RESPONSE=$(curl -sf -X POST http://localhost:8000/predict \
+            -H "Content-Type: application/json" \
+            -d '{"sepal_length": 5.1, "sepal_width": 3.5, "petal_length": 1.4, "petal_width": 0.2}')
+          echo "Response: $RESPONSE"
+          echo $RESPONSE | grep -q "setosa"
+          echo "✅ Setosa prediction passed"
+
+      - name: Test prediction — virginica
+        run: |
+          RESPONSE=$(curl -sf -X POST http://localhost:8000/predict \
+            -H "Content-Type: application/json" \
+            -d '{"sepal_length": 6.7, "sepal_width": 3.0, "petal_length": 5.2, "petal_width": 2.3}')
+          echo "Response: $RESPONSE"
+          echo $RESPONSE | grep -q "virginica"
+          echo "✅ Virginica prediction passed"
+
+      - name: Print final summary
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Pipeline complete"
+          echo "   Build  : ${{ github.run_number }}"
+          echo "   Commit : ${{ github.sha }}"
+          echo "   ECR    : ${{ secrets.ECR_REPOSITORY_URL }}:${{ needs.push-ecr.outputs.image_tag }}"
+          echo "   Docker : ${{ secrets.DOCKERHUB_USERNAME }}/iris-serving:${{ needs.push-dockerhub.outputs.image_tag }}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
   # ── Job 3: Verify ───────────────────────────────────────
   verify:
     runs-on: ubuntu-latest
