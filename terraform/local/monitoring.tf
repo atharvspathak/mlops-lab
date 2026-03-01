@@ -8,7 +8,7 @@ provider "helm" {
 
 # ── Monitoring Namespace ────────────────────────────────────
 resource "kubernetes_manifest" "monitoring_namespace" {
-  manifest = yamldecode(file("${path.module}/../manifests/namespaces/monitoring.yaml"))
+  manifest = yamldecode(file("${path.module}/../../manifests/namespaces/monitoring.yaml"))
 }
 
 # ── Prometheus + Grafana Stack ──────────────────────────────
@@ -33,6 +33,6 @@ resource "helm_release" "prometheus_stack" {
 }
 
 resource "kubernetes_manifest" "servicemonitor" {
-  manifest = yamldecode(file("${path.module}/../manifests/monitoring/servicemonitor.yaml"))
+  manifest = yamldecode(file("${path.module}/../../manifests/monitoring/servicemonitor.yaml"))
   depends_on = [helm_release.prometheus_stack]
 }
