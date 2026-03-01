@@ -78,6 +78,69 @@ mlops-lab/
 
 ## Quick Start
 
+### Setup
+
+**1. Clone repository:**
+```bash
+git clone git@github.com:atharvspathak/mlops-lab.git
+cd mlops-lab
+```
+
+**2. Create Python virtual environment:**
+```bash
+cd terraform/local
+terraform init
+terraform apply
+```
+
+**3. Start Minikube:**
+```bash
+minikube start --driver=docker --cpus=2 --memory=2048
+```
+
+**4. Deploy to K8s:**
+```bash
+cd terraform/local
+terraform apply
+```
+
+### Quick Start
+
+**Start everything:**
+```bash
+# Full command
+bash scripts/local-start.sh
+
+# With alias (add to ~/.bashrc first)
+mlops-start
+```
+
+**Activate Python environment:**
+```bash
+# Full command
+source ~/mlops-lab/venv/bin/activate && cd ~/mlops-lab
+
+# With alias
+mlops
+```
+
+**Stop everything:**
+```bash
+# Full command
+bash scripts/local-stop.sh
+
+# With alias
+mlops-stop
+```
+
+### Optional Aliases
+Add to `~/.bashrc` for convenience:
+```bash
+alias mlops='source ~/mlops-lab/venv/bin/activate && cd ~/mlops-lab'
+alias mlops-start='~/mlops-lab/scripts/local-start.sh'
+alias mlops-stop='~/mlops-lab/scripts/local-stop.sh'
+alias tf='terraform'
+```
 ### Prerequisites
 - WSL2 (Ubuntu 22.04)
 - Docker
