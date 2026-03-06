@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VPC Networking — City Analogy</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --border: #1e2d40;
+    --internet: #ff6b35;
+    --public: #0ea5e9;
+    --private-app: #8b5cf6;
+    --private-data: #10b981;
+    --nat: #f59e0b;
+    --igw: #ff6b35;
+    --alb: #0ea5e9;
+    --iris: #8b5cf6;
+    --mlflow: #10b981;
+    --packet: #ffd700;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --accent: #ffd700;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .header {
+    text-align: center;
+    padding: 40px 20px 20px;
+    position: relative;
+  }
+
+  .header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+
+  .header p {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 8px;
+  }
+
+  .main {
+    display: flex;
+    gap: 24px;
+    padding: 20px 40px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* ── Diagram ── */
+  .diagram {
+    flex: 1;
+    position: relative;
+  }
+
+  .city {
+    background: linear-gradient(135deg, #0a0e1a 0%, #0d1525 100%);
+    border: 2px solid #1e3a5f;
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    min-height: 700px;
+  }
+
+  .city-label {
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    background: #1e3a5f;
+    padding: 2px 12px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    color: #7dd3fc;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Internet */
+  .internet-zone {
+    background: linear-gradient(90deg, rgba(255,107,53,0.08) 0%, rgba(255,107,53,0.03) 100%);
+    border: 1px dashed rgba(255,107,53,0.4);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .zone-icon { font-size: 1.5rem; }
+
+  .zone-info .zone-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--internet);
+  }
+
+  .zone-info .zone-analogy {
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* VPC */
+  .vpc {
+    background: rgba(14,165,233,0.03);
+    border: 2px solid rgba(14,165,233,0.2);
+    border-radius: 12px;
+    padding: 16px;
+    position: relative;
+  }
+
+  .vpc-label {
+    position: absolute;
+    top: -11px;
+    left: 16px;
+    background: var(--bg);
+    padding: 0 10px;
+    font-size: 0.65rem;
+    color: #7dd3fc;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  /* Gateways row */
+  .gateways {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .gateway {
+    flex: 1;
+    border-radius: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .gateway:hover { transform: translateY(-2px); }
+
+  .gateway.igw {
+    background: rgba(255,107,53,0.1);
+    border: 1px solid rgba(255,107,53,0.4);
+  }
+
+  .gateway.nat {
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.4);
+  }
+
+  .gateway-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+  }
+
+  .igw .gateway-name { color: var(--igw); }
+  .nat .gateway-name { color: var(--nat); }
+
+  .gateway-tech { font-size: 0.6rem; color: var(--muted); margin-top: 2px; }
+  .gateway-analogy { font-size: 0.6rem; margin-top: 4px; }
+  .igw .gateway-analogy { color: rgba(255,107,53,0.7); }
+  .nat .gateway-analogy { color: rgba(245,158,11,0.7); }
+
+  /* Subnets */
+  .subnet {
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+
+  .subnet.public {
+    background: rgba(14,165,233,0.05);
+    border: 1px solid rgba(14,165,233,0.3);
+  }
+
+  .subnet.private-app {
+    background: rgba(139,92,246,0.05);
+    border: 1px solid rgba(139,92,246,0.3);
+  }
+
+  .subnet.private-data {
+    background: rgba(16,185,129,0.05);
+    border: 1px solid rgba(16,185,129,0.3);
+  }
+
+  .subnet-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .subnet-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .public .subnet-badge { background: rgba(14,165,233,0.2); color: #7dd3fc; }
+  .private-app .subnet-badge { background: rgba(139,92,246,0.2); color: #c4b5fd; }
+  .private-data .subnet-badge { background: rgba(16,185,129,0.2); color: #6ee7b7; }
+
+  .subnet-cidr { font-size: 0.6rem; color: var(--muted); }
+  .subnet-analogy { font-size: 0.6rem; margin-left: auto; }
+  .public .subnet-analogy { color: #7dd3fc; }
+  .private-app .subnet-analogy { color: #c4b5fd; }
+  .private-data .subnet-analogy { color: #6ee7b7; }
+
+  .resources {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .resource {
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+    min-width: 120px;
+    position: relative;
+  }
+
+  .resource:hover { transform: translateY(-2px); filter: brightness(1.2); }
+
+  .resource.alb { background: rgba(14,165,233,0.15); border: 1px solid rgba(14,165,233,0.5); }
+  .resource.iris { background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.5); }
+  .resource.mlflow { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.5); }
+  .resource.rds { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.4); }
+
+  .resource-icon { font-size: 1.2rem; margin-bottom: 4px; }
+  .resource-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.75rem; }
+  .alb .resource-name { color: #7dd3fc; }
+  .iris .resource-name { color: #c4b5fd; }
+  .mlflow .resource-name { color: #6ee7b7; }
+  .rds .resource-name { color: #6ee7b7; }
+  .resource-tech { font-size: 0.55rem; color: var(--muted); margin-top: 2px; }
+  .resource-analogy { font-size: 0.55rem; margin-top: 3px; }
+  .alb .resource-analogy { color: rgba(14,165,233,0.7); }
+  .iris .resource-analogy { color: rgba(139,92,246,0.7); }
+  .mlflow .resource-analogy { color: rgba(16,185,129,0.7); }
+
+  .resource-port {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 0.5rem;
+    color: var(--muted);
+    background: rgba(255,255,255,0.05);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ── Controls & Info Panel ── */
+  .sidebar {
+    width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--accent);
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* Flows */
+  .flow-btn {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .flow-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--accent); }
+  .flow-btn.active { background: rgba(255,215,0,0.08); border-color: var(--accent); color: var(--accent); }
+
+  .flow-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Trace log */
+  .trace-log {
+    background: #060a12;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.65rem;
+    line-height: 1.8;
+    min-height: 180px;
+    overflow-y: auto;
+  }
+
+  .trace-step {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+    opacity: 0;
+    transform: translateX(-8px);
+    transition: all 0.3s;
+  }
+
+  .trace-step.visible { opacity: 1; transform: translateX(0); }
+
+  .trace-arrow { color: var(--accent); flex-shrink: 0; }
+  .trace-text { color: var(--text); }
+  .trace-note { color: var(--muted); font-size: 0.58rem; }
+
+  /* Legend */
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 0.65rem;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-name { color: var(--text); font-weight: 600; }
+  .legend-desc { color: var(--muted); margin-left: 4px; }
+
+  /* Animated packet */
+  .packet {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--packet);
+    box-shadow: 0 0 12px var(--packet);
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+  }
+
+  /* Route table */
+  .route-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.62rem;
+    margin-top: 4px;
+  }
+
+  .route-table th {
+    text-align: left;
+    color: var(--muted);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+
+  .route-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .route-table tr:last-child td { border-bottom: none; }
+
+  .dest { color: #7dd3fc; }
+  .target-igw { color: var(--igw); }
+  .target-nat { color: var(--nat); }
+  .target-local { color: var(--mlflow); }
+
+  /* SG highlight */
+  .resource.highlighted {
+    box-shadow: 0 0 20px rgba(255,215,0,0.4);
+    border-color: var(--accent) !important;
+  }
+
+  .sg-rule {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.62rem;
+  }
+
+  .sg-rule:last-child { border-bottom: none; }
+  .sg-port { color: var(--accent); }
+  .sg-source { color: var(--muted); }
+  .sg-allow { color: #10b981; }
+
+  /* Pulse animation */
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255,215,0,0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(255,215,0,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,215,0,0); }
+  }
+
+  .pulsing { animation: pulse 1.5s infinite; }
+
+  @keyframes flow-anim {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  .arrow-line {
+    position: absolute;
+    pointer-events: none;
+    z-index: 50;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>☁️ VPC Networking — City Analogy</h1>
+  <p>Click a flow to see the request journey step by step</p>
+</div>
+
+<div class="main">
+
+  <!-- Diagram -->
+  <div class="diagram">
+    <div class="city" id="city">
+      <div class="city-label">🏙️ AWS Region (ap-south-1) = City</div>
+
+      <!-- Internet -->
+      <div class="internet-zone" id="zone-internet">
+        <div class="zone-icon">🌍</div>
+        <div class="zone-info">
+          <div class="zone-title">Internet</div>
+          <div class="zone-analogy">= The outside world (streets of the city)</div>
+        </div>
+        <div style="margin-left:auto;font-size:0.6rem;color:var(--muted)">Users, ECR, PyPI</div>
+      </div>
+
+      <!-- VPC -->
+      <div class="vpc">
+        <div class="vpc-label">🏢 VPC (10.0.0.0/16) = Your Office Building</div>
+
+        <!-- Gateways -->
+        <div class="gateways">
+          <div class="gateway igw" id="gw-igw">
+            <div class="gateway-name">🚪 Internet Gateway</div>
+            <div class="gateway-tech">aws_internet_gateway</div>
+            <div class="gateway-analogy">= Main entrance of building (2-way)</div>
+          </div>
+          <div class="gateway nat" id="gw-nat">
+            <div class="gateway-name">📬 NAT Gateway</div>
+            <div class="gateway-tech">aws_nat_gateway</div>
+            <div class="gateway-analogy">= Post room (send letters out, no visitors in)</div>
+          </div>
+        </div>
+
+        <!-- Public Subnet -->
+        <div class="subnet public" id="subnet-public">
+          <div class="subnet-header">
+            <span class="subnet-badge">Public Subnet</span>
+            <span class="subnet-cidr">10.0.1.0/24</span>
+            <span class="subnet-analogy">= Ground floor reception</span>
+          </div>
+          <div class="resources">
+            <div class="resource alb" id="res-alb">
+              <div class="resource-port">:443/:80</div>
+              <div class="resource-icon">⚖️</div>
+              <div class="resource-name">Load Balancer</div>
+              <div class="resource-tech">aws_lb (ALB)</div>
+              <div class="resource-analogy">= Receptionist</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Private App Subnet -->
+        <div class="subnet private-app" id="subnet-private-app">
+          <div class="subnet-header">
+            <span class="subnet-badge">Private Subnet</span>
+            <span class="subnet-cidr">10.0.2.0/24</span>
+            <span class="subnet-analogy">= 2nd floor — Dev team office</span>
+          </div>
+          <div class="resources">
+            <div class="resource iris" id="res-iris">
+              <div class="resource-port">:8000</div>
+              <div class="resource-icon">🔮</div>
+              <div class="resource-name">iris-serving</div>
+              <div class="resource-tech">FastAPI + Docker</div>
+              <div class="resource-analogy">= Developer at desk</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Private Data Subnet -->
+        <div class="subnet private-data" id="subnet-private-data">
+          <div class="subnet-header">
+            <span class="subnet-badge">Private Subnet</span>
+            <span class="subnet-cidr">10.0.3.0/24</span>
+            <span class="subnet-analogy">= Basement server room</span>
+          </div>
+          <div class="resources">
+            <div class="resource mlflow" id="res-mlflow">
+              <div class="resource-port">:5000</div>
+              <div class="resource-icon">📊</div>
+              <div class="resource-name">MLflow</div>
+              <div class="resource-tech">mlflow server</div>
+              <div class="resource-analogy">= Filing cabinet</div>
+            </div>
+            <div class="resource rds" id="res-rds">
+              <div class="resource-port">:5432</div>
+              <div class="resource-icon">🗄️</div>
+              <div class="resource-name">RDS Database</div>
+              <div class="resource-tech">aws_db_instance</div>
+              <div class="resource-analogy">= Server rack</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /vpc -->
+    </div><!-- /city -->
+  </div><!-- /diagram -->
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Flows -->
+    <div class="panel">
+      <div class="panel-title">▶ Request Flows</div>
+
+      <button class="flow-btn" id="btn-predict" onclick="runFlow('predict')">
+        <div class="flow-dot" style="background:#0ea5e9"></div>
+        User → Prediction Request
+      </button>
+
+      <button class="flow-btn" id="btn-ecr" onclick="runFlow('ecr')">
+        <div class="flow-dot" style="background:#f59e0b"></div>
+        iris-serving → Pull from ECR
+      </button>
+
+      <button class="flow-btn" id="btn-mlflow" onclick="runFlow('mlflow')">
+        <div class="flow-dot" style="background:#8b5cf6"></div>
+        iris-serving → Log to MLflow
+      </button>
+
+      <button class="flow-btn" id="btn-blocked" onclick="runFlow('blocked')">
+        <div class="flow-dot" style="background:#ef4444"></div>
+        Internet → MLflow (BLOCKED)
+      </button>
+    </div>
+
+    <!-- Trace Log -->
+    <div class="panel">
+      <div class="panel-title">📡 Request Trace</div>
+      <div class="trace-log" id="trace-log">
+        <div style="color:var(--muted);font-size:0.65rem">Click a flow above to trace the request...</div>
+      </div>
+    </div>
+
+    <!-- Route Tables -->
+    <div class="panel">
+      <div class="panel-title">🗺 Route Tables</div>
+      <div style="font-size:0.62rem;color:var(--muted);margin-bottom:6px">Public Subnet</div>
+      <table class="route-table">
+        <tr><th>Destination</th><th>Target</th></tr>
+        <tr><td class="dest">10.0.0.0/16</td><td class="target-local">local</td></tr>
+        <tr><td class="dest">0.0.0.0/0</td><td class="target-igw">igw-xxxxx</td></tr>
+      </table>
+      <div style="font-size:0.62rem;color:var(--muted);margin-bottom:6px;margin-top:10px">Private Subnet</div>
+      <table class="route-table">
+        <tr><th>Destination</th><th>Target</th></tr>
+        <tr><td class="dest">10.0.0.0/16</td><td class="target-local">local</td></tr>
+        <tr><td class="dest">0.0.0.0/0</td><td class="target-nat">nat-xxxxx</td></tr>
+      </table>
+    </div>
+
+    <!-- Security Groups -->
+    <div class="panel">
+      <div class="panel-title">🔒 Security Groups</div>
+      <div id="sg-display">
+        <div style="color:var(--muted);font-size:0.65rem">Click a resource to see its security group rules</div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="panel">
+      <div class="panel-title">🏷 Legend</div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#ff6b35"></div>
+        <span class="legend-name">Internet Zone</span>
+        <span class="legend-desc">— outside world</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#0ea5e9"></div>
+        <span class="legend-name">Public Subnet</span>
+        <span class="legend-desc">— internet accessible</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#8b5cf6"></div>
+        <span class="legend-name">Private Subnet (App)</span>
+        <span class="legend-desc">— internal only</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#10b981"></div>
+        <span class="legend-name">Private Subnet (Data)</span>
+        <span class="legend-desc">— no internet access</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#ffd700"></div>
+        <span class="legend-name">Packet</span>
+        <span class="legend-desc">— request in transit</span>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+</div><!-- /main -->
+
+<script>
+const sgRules = {
+  alb: {
+    name: 'alb-sg',
+    color: '#0ea5e9',
+    inbound: [
+      { port: '443', source: '0.0.0.0/0', note: 'HTTPS from internet' },
+      { port: '80',  source: '0.0.0.0/0', note: 'HTTP from internet' },
+    ],
+    outbound: [
+      { port: '8000', source: 'iris-serving-sg', note: 'Forward to API' },
+    ]
+  },
+  iris: {
+    name: 'iris-serving-sg',
+    color: '#8b5cf6',
+    inbound: [
+      { port: '8000', source: 'alb-sg', note: 'Requests from LB only' },
+      { port: '22',   source: 'bastion-sg', note: 'SSH from bastion' },
+    ],
+    outbound: [
+      { port: '5000', source: 'mlflow-sg', note: 'Log to MLflow' },
+      { port: '443',  source: '0.0.0.0/0', note: 'Pull from ECR/S3' },
+    ]
+  },
+  mlflow: {
+    name: 'mlflow-sg',
+    color: '#10b981',
+    inbound: [
+      { port: '5000', source: 'iris-serving-sg', note: 'Metrics from iris-serving' },
+    ],
+    outbound: [
+      { port: '443', source: '0.0.0.0/0', note: 'Store artifacts in S3' },
+      { port: '5432', source: 'rds-sg', note: 'MLflow backend DB' },
+    ]
+  },
+  rds: {
+    name: 'rds-sg',
+    color: '#10b981',
+    inbound: [
+      { port: '5432', source: 'mlflow-sg', note: 'DB access from MLflow only' },
+    ],
+    outbound: []
+  }
+};
+
+const flows = {
+  predict: {
+    title: '🔵 User Prediction Request',
+    color: '#0ea5e9',
+    steps: [
+      { text: 'User in Pune sends POST /predict', note: 'from public internet' },
+      { text: 'Hits Internet Gateway (IGW)', note: 'building main entrance — 2-way door' },
+      { text: 'Reaches Load Balancer in Public Subnet', note: 'receptionist on ground floor' },
+      { text: 'ALB checks health → forwards to iris-serving', note: 'internal phone — no internet needed' },
+      { text: 'iris-serving (Private Subnet) processes request', note: 'developer on 2nd floor, invisible from street' },
+      { text: 'Response travels back: iris-serving → ALB → IGW → User', note: 'stateful SG allows return traffic automatically' },
+    ],
+    highlight: ['res-alb', 'res-iris'],
+    gateways: ['gw-igw']
+  },
+  ecr: {
+    title: '🟡 iris-serving Pulls Image from ECR',
+    color: '#f59e0b',
+    steps: [
+      { text: 'iris-serving needs Docker image from ECR', note: 'ECR is on the internet' },
+      { text: 'Private subnet has no Internet Gateway', note: 'no direct internet access' },
+      { text: 'Traffic goes to NAT Gateway (Public Subnet)', note: 'like sending a letter via post room' },
+      { text: 'NAT translates private IP 10.0.2.x → NAT public IP', note: 'your home address hidden, post room address used' },
+      { text: 'Request reaches ECR on internet', note: 'ECR never sees your private IP' },
+      { text: 'Response comes back through NAT → iris-serving', note: 'ECR cannot initiate connection back — one-way door' },
+    ],
+    highlight: ['res-iris'],
+    gateways: ['gw-nat', 'gw-igw']
+  },
+  mlflow: {
+    title: '🟣 iris-serving Logs to MLflow',
+    color: '#8b5cf6',
+    steps: [
+      { text: 'iris-serving finishes prediction, logs metrics', note: 'internal traffic only' },
+      { text: 'Both in same VPC — direct private communication', note: 'no gateway needed' },
+      { text: 'Traffic stays inside VPC: 10.0.2.x → 10.0.3.x', note: 'like calling colleague on internal phone' },
+      { text: 'Route table: 10.0.0.0/16 → local', note: 'VPC traffic never leaves the building' },
+      { text: 'MLflow SG allows port 5000 from iris-serving-sg', note: 'security group reference, not IP range' },
+      { text: 'Metrics logged to MLflow ✅', note: 'fast, secure, no internet cost' },
+    ],
+    highlight: ['res-iris', 'res-mlflow'],
+    gateways: []
+  },
+  blocked: {
+    title: '🔴 Internet → MLflow (BLOCKED)',
+    color: '#ef4444',
+    steps: [
+      { text: 'Attacker on internet tries to reach MLflow', note: 'port 5000 contains experiment data' },
+      { text: 'MLflow is in Private Subnet', note: 'no public IP assigned' },
+      { text: 'Private subnet route: 0.0.0.0/0 → NAT only', note: 'outbound only — no inbound route from internet' },
+      { text: 'No path exists from internet to private subnet', note: 'the building has no back door' },
+      { text: 'Even if they guessed the IP — Security Group blocks it', note: 'MLflow SG only allows iris-serving-sg on port 5000' },
+      { text: '❌ CONNECTION REFUSED — Attack blocked at multiple layers', note: 'defense in depth' },
+    ],
+    highlight: ['res-mlflow'],
+    gateways: []
+  }
+};
+
+let activeFlow = null;
+
+function clearHighlights() {
+  document.querySelectorAll('.resource').forEach(el => {
+    el.classList.remove('highlighted', 'pulsing');
+  });
+  document.querySelectorAll('.gateway').forEach(el => {
+    el.style.boxShadow = '';
+    el.style.borderColor = '';
+  });
+  document.querySelectorAll('.flow-btn').forEach(el => el.classList.remove('active'));
+}
+
+async function runFlow(flowId) {
+  clearHighlights();
+  activeFlow = flowId;
+  const flow = flows[flowId];
+  const log = document.getElementById('trace-log');
+  const btn = document.getElementById(`btn-${flowId}`);
+  btn.classList.add('active');
+
+  // Highlight gateways
+  flow.gateways.forEach(gwId => {
+    const gw = document.getElementById(gwId);
+    if (gw) {
+      gw.style.boxShadow = `0 0 20px ${flow.color}66`;
+      gw.style.borderColor = flow.color;
+    }
+  });
+
+  // Build trace log
+  log.innerHTML = `<div style="color:${flow.color};font-weight:600;margin-bottom:8px;font-size:0.7rem">${flow.title}</div>`;
+
+  for (let i = 0; i < flow.steps.length; i++) {
+    await sleep(400);
+    const step = flow.steps[i];
+    const div = document.createElement('div');
+    div.className = 'trace-step';
+    div.innerHTML = `
+      <span class="trace-arrow">→</span>
+      <div>
+        <div class="trace-text">${step.text}</div>
+        <div class="trace-note">${step.note}</div>
+      </div>
+    `;
+    log.appendChild(div);
+    requestAnimationFrame(() => div.classList.add('visible'));
+    log.scrollTop = log.scrollHeight;
+
+    // Highlight resource on relevant steps
+    if (i < flow.highlight.length) {
+      const res = document.getElementById(flow.highlight[i]);
+      if (res) {
+        res.classList.add('highlighted', 'pulsing');
+        await sleep(300);
+        res.classList.remove('pulsing');
+      }
+    }
+  }
+
+  // Final highlight
+  flow.highlight.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('highlighted');
+  });
+}
+
+function showSG(resourceId) {
+  const sg = sgRules[resourceId];
+  if (!sg) return;
+
+  const display = document.getElementById('sg-display');
+  display.innerHTML = `
+    <div style="color:${sg.color};font-weight:700;font-size:0.7rem;margin-bottom:8px">${sg.name}</div>
+    <div style="font-size:0.6rem;color:var(--muted);margin-bottom:4px">INBOUND RULES</div>
+    ${sg.inbound.map(r => `
+      <div class="sg-rule">
+        <span class="sg-port">:${r.port}</span>
+        <span class="sg-source">from ${r.source}</span>
+        <span class="sg-allow">✓</span>
+      </div>
+      <div style="font-size:0.55rem;color:var(--muted);padding-bottom:4px;padding-left:4px">${r.note}</div>
+    `).join('')}
+    <div style="font-size:0.6rem;color:var(--muted);margin-top:8px;margin-bottom:4px">OUTBOUND RULES</div>
+    ${sg.outbound.length ? sg.outbound.map(r => `
+      <div class="sg-rule">
+        <span class="sg-port">:${r.port}</span>
+        <span class="sg-source">to ${r.source}</span>
+        <span class="sg-allow">✓</span>
+      </div>
+      <div style="font-size:0.55rem;color:var(--muted);padding-bottom:4px;padding-left:4px">${r.note}</div>
+    `).join('') : '<div style="color:var(--muted);font-size:0.6rem">No explicit outbound rules</div>'}
+  `;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Resource click handlers for SG display
+document.getElementById('res-alb').addEventListener('click', () => showSG('alb'));
+document.getElementById('res-iris').addEventListener('click', () => showSG('iris'));
+document.getElementById('res-mlflow').addEventListener('click', () => showSG('mlflow'));
+document.getElementById('res-rds').addEventListener('click', () => showSG('rds'));
+</script>
+</body>
+</html>
